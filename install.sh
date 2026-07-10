@@ -18,7 +18,7 @@ SERVICE_FILE="/etc/systemd/system/ip-monitor.service"
 
 # 修改成你的GitHub仓库地址
 
-GITHUB_REPO="https://github.com/你的用户名/ip-monitor-pro.git"
+GITHUB_REPO="https://github.com/codex416/ip-monitor-pro.git"
 
 
 
