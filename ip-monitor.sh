@@ -343,27 +343,16 @@ log "IP Monitor Pro Started"
 
 
 while true
-
 do
 
+log "Start Check"
+
+manual_check
 
 
-log "开始检测"
+bash "$APP_DIR/gfw-check.sh"
 
 
-
-check_ip
-
-
-check_ports
-
-
-check_status
-
-
-
-sleep $CHECK_INTERVAL
-
-
+sleep "$CHECK_INTERVAL"
 
 done
