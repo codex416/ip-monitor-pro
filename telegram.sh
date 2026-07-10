@@ -5,33 +5,21 @@
 # ==========================================
 
 
-BASE_DIR="/opt/ip-monitor"
+APP_DIR="/opt/ip-monitor"
+
+CONFIG="$APP_DIR/config.conf"
+
+LOG_FILE="$APP_DIR/logs/monitor.log"
+
+STATE_DIR="$APP_DIR/state"
 
 
-CONFIG="$BASE_DIR/config.conf"
-
-
-LOG_FILE="$BASE_DIR/logs/monitor.log"
-
-
-STATE_DIR="$BASE_DIR/state"
-
-
-
-if [ ! -f "$CONFIG" ]; then
-
-    exit 1
-
-fi
-
-
-
-source $CONFIG
+source "$CONFIG"
 
 
 
 # ==========================================
-# Telegram发送消息
+# 发送消息函数
 # ==========================================
 
 
@@ -44,14 +32,35 @@ TEXT="$1"
 curl -s \
 -X POST \
 "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
--d chat_id="${CHAT_ID}" \
+-d chat_id="$CHAT_ID" \
 -d parse_mode="HTML" \
--d text="$TEXT" \
+--data-urlencode text="$TEXT" \
 >/dev/null
 
 
 
 }
+
+
+
+# ==========================================
+# 如果收到参数
+# 说明来自监控程序
+# 发送后退出
+# ==========================================
+
+
+if [ -n "$1" ]; then
+
+
+send_message "$1"
+
+
+exit 0
+
+
+fi
+
 
 
 
@@ -67,21 +76,21 @@ curl -s \
 -X POST \
 "https://api.telegram.org/bot${BOT_TOKEN}/setMyCommands" \
 -d 'commands=[
-{"command":"status","description":"查看节点状态"},
+{"command":"status","description":"查看状态"},
 {"command":"check","description":"立即检测"},
-{"command":"ip","description":"查看当前IP"},
+{"command":"ip","description":"查看IP"},
 {"command":"log","description":"查看日志"}
 ]' \
 >/dev/null
-
 
 
 }
 
 
 
+
 # ==========================================
-# 获取当前IP
+# 获取IP
 # ==========================================
 
 
@@ -95,43 +104,43 @@ curl -s4 "$IP_API"
 
 
 
+
 # ==========================================
-# 当前状态
+# 状态查询
 # ==========================================
 
 
-status(){
+show_status(){
 
 
 IP=$(get_ip)
 
 
 
+STATUS="UNKNOWN"
+
+
 if [ -f "$STATE_DIR/status" ];then
 
 STATUS=$(cat "$STATE_DIR/status")
-
-else
-
-STATUS="UNKNOWN"
 
 fi
 
 
 
-PORT_STATUS=""
+PORTS=""
 
 
 
 if [ -f "$STATE_DIR/ports" ];then
 
-PORT_STATUS=$(cat "$STATE_DIR/ports")
+PORTS=$(cat "$STATE_DIR/ports")
 
 fi
 
 
 
-MSG="
+send_message "
 🖥 <b>IP Monitor Pro</b>
 
 
@@ -142,22 +151,20 @@ MSG="
 
 📡 状态:
 
-$STATUS
+<b>$STATUS</b>
 
 
 🔌 端口:
 
-$PORT_STATUS
+<pre>
+$PORTS
+</pre>
 
 
-🕒 时间:
+时间:
 
 $(date '+%Y-%m-%d %H:%M:%S')
 "
-
-
-
-send_message "$MSG"
 
 
 }
@@ -166,7 +173,7 @@ send_message "$MSG"
 
 
 # ==========================================
-# IP信息
+# 查看IP
 # ==========================================
 
 
@@ -176,37 +183,32 @@ show_ip(){
 IP=$(get_ip)
 
 
-
 send_message "
-🌐 当前IP
+🌐 当前IP:
 
 <code>$IP</code>
-
-时间:
-$(date '+%Y-%m-%d %H:%M:%S')
 "
-
 
 
 }
 
 
 
+
 # ==========================================
-# 日志
+# 查看日志
 # ==========================================
 
 
 show_log(){
 
 
-LOG=$(tail -n 20 "$LOG_FILE")
+LOG=$(tail -20 "$LOG_FILE")
 
 
 
 send_message "
 📜 最近日志:
-
 
 <pre>
 $LOG
@@ -218,37 +220,16 @@ $LOG
 
 
 
-# ==========================================
-# 立即检测
-# ==========================================
-
-
-manual_check(){
-
-
-touch "$STATE_DIR/manual_check"
-
-
-
-send_message "
-🔍 已执行立即检测
-
-请等待下一次检测结果。
-"
-
-
-
-}
-
-
-
 
 # ==========================================
-# Telegram轮询
+# 命令监听
 # ==========================================
 
 
 OFFSET=0
+
+
+set_commands
 
 
 
@@ -258,12 +239,12 @@ do
 
 
 
-RESULT=$(curl -s \
-"https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${OFFSET}")
+DATA=$(curl -s \
+"https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=$OFFSET")
 
 
 
-COUNT=$(echo "$RESULT" | jq '.result | length')
+COUNT=$(echo "$DATA" | jq '.result|length')
 
 
 
@@ -277,11 +258,11 @@ do
 
 
 
-UPDATE=$(echo "$RESULT" | jq ".result[$i]")
+UPDATE=$(echo "$DATA" | jq ".result[$i]")
 
 
 
-OFFSET=$(echo "$UPDATE" | jq '.update_id + 1')
+OFFSET=$(echo "$UPDATE" | jq '.update_id+1')
 
 
 
@@ -289,11 +270,11 @@ CMD=$(echo "$UPDATE" | jq -r '.message.text')
 
 
 
-USER=$(echo "$UPDATE" | jq -r '.message.chat.id')
+USER_ID=$(echo "$UPDATE" | jq -r '.message.chat.id')
 
 
 
-if [ "$USER" != "$CHAT_ID" ];then
+if [ "$USER_ID" != "$CHAT_ID" ];then
 
 continue
 
@@ -306,10 +287,9 @@ case "$CMD" in
 
 /status)
 
-status
+show_status
 
 ;;
-
 
 
 /ip)
@@ -319,7 +299,6 @@ show_ip
 ;;
 
 
-
 /log)
 
 show_log
@@ -327,13 +306,15 @@ show_log
 ;;
 
 
-
 /check)
 
-manual_check
+touch "$STATE_DIR/manual_check"
+
+send_message "
+🔍 已执行立即检测
+"
 
 ;;
-
 
 
 esac
@@ -343,13 +324,11 @@ esac
 done
 
 
-
 fi
 
 
 
 sleep 3
-
 
 
 done
