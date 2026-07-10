@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================
-# IP Monitor Pro 一键安装脚本
+# IP Monitor Pro 自动安装脚本
 # GitHub版本
 # ==========================================
 
@@ -13,19 +13,21 @@ APP_NAME="ip-monitor"
 
 INSTALL_DIR="/opt/ip-monitor"
 
-SERVICE_FILE="/etc/systemd/system/ip-monitor.service"
+
+SYSTEMD_DIR="/etc/systemd/system"
 
 
-# 修改成你的GitHub仓库地址
-
-GITHUB_REPO="https://github.com/codex416/ip-monitor-pro.git"
+REPO="https://github.com/codex416/ip-monitor-pro.git"
 
 
 
-echo "================================="
+echo "======================================"
 echo " IP Monitor Pro Installer"
-echo "================================="
+echo "======================================"
 
+
+
+# 检查root
 
 if [ "$EUID" -ne 0 ]; then
 
@@ -37,10 +39,14 @@ fi
 
 
 
-echo "[1/6] 安装依赖..."
+echo
+
+echo "[1/7] 更新系统依赖..."
+
 
 
 apt update
+
 
 
 apt install -y \
@@ -53,102 +59,213 @@ net-tools
 
 
 
-echo "[2/6] 下载程序..."
+echo
+
+echo "[2/7] 下载GitHub项目..."
+
 
 
 if [ -d "$INSTALL_DIR" ]; then
 
-    echo "检测到旧目录，删除..."
+    echo "检测到旧版本"
 
-    rm -rf $INSTALL_DIR
+    echo "正在删除旧文件..."
+
+    rm -rf "$INSTALL_DIR"
 
 fi
 
 
 
-git clone $GITHUB_REPO $INSTALL_DIR
+git clone "$REPO" "$INSTALL_DIR"
 
 
 
-echo "[3/6] 设置权限..."
+echo
 
-
-chmod +x $INSTALL_DIR/*.sh
-
-
-
-mkdir -p $INSTALL_DIR/logs
-
-mkdir -p $INSTALL_DIR/state
+echo "[3/7] 设置权限..."
 
 
 
-echo "[4/6] 安装配置文件..."
+chmod +x "$INSTALL_DIR"/*.sh
+
+
+
+mkdir -p "$INSTALL_DIR/logs"
+
+mkdir -p "$INSTALL_DIR/state"
+
+
+
+
+echo
+
+echo "[4/7] 创建配置文件..."
+
 
 
 if [ ! -f "$INSTALL_DIR/config.conf" ]; then
 
-    cp $INSTALL_DIR/config.example.conf \
-    $INSTALL_DIR/config.conf
+
+    if [ -f "$INSTALL_DIR/config.example.conf" ]; then
+
+
+        cp \
+        "$INSTALL_DIR/config.example.conf" \
+        "$INSTALL_DIR/config.conf"
+
+
+    fi
+
 
 fi
 
 
 
 echo
-echo "================================="
-echo "请编辑配置文件:"
+
+echo "======================================"
+
+echo "请编辑配置文件："
+
 echo
+
 echo "$INSTALL_DIR/config.conf"
+
 echo
-echo "填写 Telegram TOKEN 和 CHAT_ID"
-echo "================================="
+
+echo "填写："
+
+echo "BOT_TOKEN"
+
+echo "CHAT_ID"
+
+echo
+
+echo "完成后按回车继续"
+
+echo "======================================"
 
 
-read -p "配置完成后按回车继续..."
+
+read
 
 
 
-echo "[5/6] 安装systemd服务..."
+# 检查配置
+
+
+if grep -q "YOUR_TELEGRAM_BOT_TOKEN" \
+"$INSTALL_DIR/config.conf"; then
+
+
+echo
+
+echo "错误：Telegram TOKEN 未配置"
+
+echo "请修改 config.conf 后重新运行"
+
+exit 1
+
+
+fi
 
 
 
-cp $INSTALL_DIR/ip-monitor.service \
-$SERVICE_FILE
+
+echo
+
+echo "[5/7] 安装systemd服务..."
+
+
+
+cp \
+"$INSTALL_DIR/ip-monitor.service" \
+"$SYSTEMD_DIR/ip-monitor.service"
+
+
+
+cp \
+"$INSTALL_DIR/telegram-bot.service" \
+"$SYSTEMD_DIR/telegram-bot.service"
+
+
+
+
+echo
+
+echo "[6/7] 启动服务..."
 
 
 
 systemctl daemon-reload
 
 
+
 systemctl enable ip-monitor
 
+systemctl enable telegram-bot
 
-
-echo "[6/6] 启动服务..."
 
 
 systemctl restart ip-monitor
 
+systemctl restart telegram-bot
 
 
-echo
-echo "================================="
-echo "安装完成"
-echo "================================="
-
-
-echo
-
-echo "查看状态:"
-echo
-
-echo "systemctl status ip-monitor"
 
 
 echo
 
-echo "查看日志:"
+echo "[7/7] 检查状态..."
+
+
+
+sleep 3
+
+
+
 echo
 
+echo "======================================"
+
+echo " IP Monitor Pro 安装完成"
+
+echo "======================================"
+
+
+
+echo
+
+echo "检测服务:"
+
+systemctl --no-pager status ip-monitor | head -10
+
+
+
+echo
+
+echo "Telegram服务:"
+
+systemctl --no-pager status telegram-bot | head -10
+
+
+
+echo
+
+echo "日志查看："
+
+echo
+
+echo "检测日志:"
 echo "tail -f /opt/ip-monitor/logs/monitor.log"
+
+echo
+
+echo "Telegram日志:"
+echo "tail -f /opt/ip-monitor/logs/telegram.log"
+
+echo
+
+echo "卸载:"
+echo "/opt/ip-monitor/uninstall.sh"
