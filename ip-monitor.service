@@ -1,0 +1,47 @@
+[Unit]
+Description=IP Monitor Pro - VPS IP Wall Detection Service
+After=network-online.target
+Wants=network-online.target
+
+
+[Service]
+
+Type=simple
+
+
+# 主程序位置
+
+ExecStart=/opt/ip-monitor/ip-monitor.sh
+
+
+# 工作目录
+
+WorkingDirectory=/opt/ip-monitor
+
+
+
+# 自动重启
+
+Restart=always
+
+RestartSec=10
+
+
+
+# 环境
+
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+
+
+# 日志输出
+
+StandardOutput=append:/opt/ip-monitor/logs/monitor.log
+
+StandardError=append:/opt/ip-monitor/logs/monitor.log
+
+
+
+[Install]
+
+WantedBy=multi-user.target
